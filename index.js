@@ -7,78 +7,49 @@ const app = express();
 const port = process.env.PORT || 3003;
 
 app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.use('/public', express.static(`${process.cwd()}/public`));
 
-app.get('/', function (req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
-});
-
-// Your first API endpoint
-app.get('/api/hello', function (req, res) {
-  res.json({ greeting: 'hello API' });
-});
-
-// --------------CHALLENGE--------------
-// urlencoded is a middleware and the main objective of this method is to parse the incoming request with urlencoded payloads and is based upon the body-parser.
-app.use(express.urlencoded({
-  limit: '10mb',
-  extended: true
-}));
-
-// Used this arrays to store the passed URLs
+// Array to store original URLs
 const originalURLs = [];
-const shortURLs = [];
 
 // URL Shortener API endpoint
 app.post('/api/shorturl', (req, res) => {
   const url = req.body.url;
 
-  // REGEX for checking if the passed URL is of correct format or not
-  var pattern = new RegExp('^(https?:\\/\\/)?' + // protocol
-    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|' + // domain name
-    '((\\d{1,3}\\.){3}\\d{1,3}))' + // OR ip (v4) address
-    '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*' + // port and path
-    '(\\?[;&a-z\\d%_.~+=-]*)?' + // query string
-    '(\\#[-a-z\\d_]*)?$', 'i'); // fragment locator
-  if (!pattern.test(url)) return res.json({ error: 'invalid url' });
+  // Regular expression for URL format validation
+  const pattern = /^(https?:\/\/)?([\w.]+)\.([a-z]{2,})(\.[a-z]{2,})?$/i;
 
-  // Finding the index of the passed URL in originalURLs array
-  const foundIndex = originalURLs.indexOf(url);
-
-  // If passed URL is not found in the originalURLs array
-  if (foundIndex < 0) {
-    originalURLs.push(url);
-    shortURLs.push(shortURLs.length);
-
-    return res.json({
-      original_url: url,
-      short_url: shortURLs.length - 1 // After pushing the shorlURLs in Line 49 the length is incremented, so we get short_url value as shortURLs's length - 1
-    });
+  // Check if the URL matches the valid format
+  if (!pattern.test(url)) {
+    return res.json({ error: 'invalid url' });
   }
 
-  // If passed URL is in the originalURLs array
-  return res.json({
+  // Add the original URL to the array
+  originalURLs.push(url);
+
+  // Respond with the original URL and its index in the array
+  res.json({
     original_url: url,
-    short_url: shortURLs[foundIndex] // Get the passed url index and assign the short_url to shortURLs array at index of passed url
+    short_url: originalURLs.indexOf(url)
   });
 });
 
 // Shortened URL's original URL access API endpoint
-app.get("/api/shorturl/:value", (req, res) => {
-  const shortenedURL = Number(req.params.value);
-  if (Number.isNaN(shortenedURL)) return res.json({ "error": "Wrong format" }); // If the passed shortenedURL is Not-a-Number return "Wrong format" error message
+app.get('/api/shorturl/:short_url', (req, res) => {
+  const shortURLIndex = req.params.short_url;
 
-  // Finding the index of the passed shortenedURL in shortURLs array
-  const foundIndex = shortURLs.indexOf(shortenedURL);
+  // Check if the index is valid
+  if (!originalURLs[shortURLIndex]) {
+    return res.json({ error: 'No URL found for the given short_url' });
+  }
 
-  // If passed URL is not found in the originalURLs array
-  if (foundIndex < 0) return res.json({ "error": "No short URL found for the given input" });
-
-  // If passed URL is in the originalURLs array
-  res.redirect(originalURLs[foundIndex]);
+  // Redirect to the original URL
+  res.redirect(originalURLs[shortURLIndex]);
 });
 
-app.listen(port, function () {
+app.listen(port, () => {
   console.log(`Listening on port ${port}`);
 });
